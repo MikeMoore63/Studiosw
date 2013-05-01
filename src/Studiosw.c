@@ -81,7 +81,7 @@ TextLayer day_display_layer;
 TextLayer ampm_display_layer;
 GFont time_font;
 GFont date_day_font;
-int firstrun = STOPWATCH;
+int firstrun = STOPWATCH;  // Note not watch
 
 void start_stopwatch() {
     yachtimer_start(&myYachtTimer);
@@ -97,7 +97,8 @@ void start_stopwatch() {
     }
     // Slow update down to once a second to save power
     ticklen = yachtimer_getTick(&myYachtTimer);
-    update_timer = app_timer_send_event(app, yachtimer_getTick(&myYachtTimer), TIMER_UPDATE);
+    update_timer = app_timer_send_event(app, ASECOND, TIMER_UPDATE);
+    firstrun=-3;
 
 }
 // Toggle stopwatch timer mode
@@ -124,7 +125,7 @@ void toggle_mode(ClickRecognizerRef recognizer, Window *window) {
           ticks = 0;
 
             ticklen = yachtimer_getTick(&myYachtTimer);
-            update_timer = app_timer_send_event(app, ticklen, TIMER_UPDATE);
+            update_timer = app_timer_send_event(app, ASECOND, TIMER_UPDATE);
 }
 
 void stop_stopwatch() {
@@ -137,7 +138,7 @@ void stop_stopwatch() {
     }
     // Slow update down to once a second to save power
     ticklen = yachtimer_getTick(&myYachtTimer);
-    update_timer = app_timer_send_event(app, ticklen, TIMER_UPDATE);
+    update_timer = app_timer_send_event(app, ASECOND, TIMER_UPDATE);
 }
 void toggle_stopwatch_handler(ClickRecognizerRef recognizer, Window *window) {
     if(yachtimer_isRunning(&myYachtTimer)) {
@@ -164,6 +165,7 @@ void reset_stopwatch_handler(ClickRecognizerRef recognizer, Window *window) {
             {
                 stop_stopwatch();
             }
+	    // Force redisplay
             update_hand_positions();
 
             break;
@@ -317,7 +319,8 @@ void handle_init(AppContextRef ctx) {
   for (int i=0;i<MODES;i++)
   {
         bmp_init_container(mapModeImage[i].resourceid,&modeImages[i]);
-        layer_set_frame(&modeImages[i].layer.layer, GRect((144 - 12)/2,((144 - 16)/2)+ 25,12,16));
+        layer_set_frame(&modeImages[i].layer.layer, GRect(0,0,12,16));
+        // layer_set_frame(&modeImages[i].layer.layer, GRect((144 - 12)/2,((144 - 16)/2)+ 25,12,16));
         layer_set_hidden( &modeImages[i].layer.layer, true);
         layer_add_child(&window.layer,&modeImages[i].layer.layer);
   }
@@ -334,9 +337,9 @@ void handle_timer(AppContextRef ctx, AppTimerHandle handle, uint32_t cookie ) {
 
    if(cookie == TIMER_UPDATE)
    { 
-	  yachtimer_tick(&myYachtTimer,ticklen);
+	  yachtimer_tick(&myYachtTimer,ASECOND);
 	  ticklen = yachtimer_getTick(&myYachtTimer);
-	  update_timer = app_timer_send_event(ctx, ticklen, TIMER_UPDATE);
+	  update_timer = app_timer_send_event(ctx, ASECOND, TIMER_UPDATE);
           ticks++;
           if(ticks >= TICKREMOVE)
           {
@@ -366,7 +369,6 @@ void update_hand_positions()
           int modenow = yachtimer_getMode(&myYachtTimer);
 
 	  // Update Every Minute
-	  if (pebble_time->tm_sec == 0 || firstrun != modenow) {
 
 		static char time_text[] = "00:00"; // Need to be static because they're used by the system later.
 		char *time_format;
@@ -388,10 +390,8 @@ void update_hand_positions()
 		}
 
 		text_layer_set_text(&time_display_layer, time_text);
-	  }
 
 	  // Update on the hour every hour
-	  if ((pebble_time->tm_min == 0 && pebble_time->tm_sec == 0) || firstrun != modenow) {
 		if (!clock_is_24h_style()) {
 			static char ampm_text[] = "XX";
 			string_format_time(ampm_text, sizeof(ampm_text), "%p", pebble_time);
@@ -403,7 +403,7 @@ void update_hand_positions()
 		if(modenow == WATCHMODE)
 		{
 			static char day_text[] = "Xxxxxxxxx";
-			string_format_time(day_text, sizeof(day_text), "%A", pebble_time);
+			string_format_time(day_text, sizeof(day_text), "%A", yachtimer_getPblLastTime(&myYachtTimer));
 			text_layer_set_text(&day_display_layer, day_text);
 		}
 		#endif
@@ -412,17 +412,13 @@ void update_hand_positions()
 		#if DISPLAY_DATE
 		static char date_text[] = "00/00/0000";
 		#if US_DATE
-		string_format_time(date_text, sizeof(date_text), "%m/%d/%Y", pebble_time);
+		string_format_time(date_text, sizeof(date_text), "%m/%d/%Y", yachtimer_getPblLastTime(&myYachtTimer));
 		#else
-		string_format_time(date_text, sizeof(date_text), "%d/%m/%Y", pebble_time);
+		string_format_time(date_text, sizeof(date_text), "%d/%m/%Y", yachtimer_getPblLastTime(&myYachtTimer));
 		#endif
 
-		if(modenow == WATCHMODE)
-		{
 			text_layer_set_text(&date_display_layer, date_text);
-		}
 		#endif
-	  }
 
 	  // Vibrate Every Hour
 	  #if HOUR_VIBRATION
@@ -432,7 +428,7 @@ void update_hand_positions()
 	  #endif
 
 	  //Set firstrun to 0
-	  if (firstrun != modenow) {
+	  if (firstrun != modenow && ticks >= TICKREMOVE) {
 		firstrun = modenow;
 	  }
 }
