@@ -7,7 +7,7 @@
 #define MY_UUID { 0x89, 0xB4, 0x4E, 0x72, 0x1C, 0x63, 0x4D, 0xF5, 0xB1, 0x0E, 0x66, 0x13, 0xC5, 0x71, 0x56, 0xFB }
 PBL_APP_INFO(MY_UUID,
              "Studio StopWatch", "Mike Moore",
-             1, 0, /* App version */
+             1, 1, /* App version */
              DEFAULT_MENU_ICON,
              APP_INFO_STANDARD_APP);
 
@@ -16,13 +16,16 @@ AppContextRef app;
 
 YachtTimer myYachtTimer;
 int startappmode=WATCHMODE;
+int modetick=0;
 
 #define BUTTON_LAP BUTTON_ID_DOWN
 #define BUTTON_RUN BUTTON_ID_SELECT
 #define BUTTON_RESET BUTTON_ID_UP
 #define TIMER_UPDATE 1
-#define MODES 4 // Number of watch types stopwatch, coutdown, yachttimer, watch
+#define MODES 5 // Number of watch types stopwatch, coutdown, yachttimer, watch
 #define TICKREMOVE 5
+#define CNTDWNCFG 99
+#define MAX_TIME  (ASECOND * 60 * 60 * 24)
 
 int ticks=0;
 
@@ -36,7 +39,9 @@ struct modresource {
            { WATCHMODE, RESOURCE_ID_IMAGE_WATCH },
            { STOPWATCH, RESOURCE_ID_IMAGE_STOPWATCH },
            { YACHTIMER, RESOURCE_ID_IMAGE_YACHTTIMER },
-           { COUNTDOWN, RESOURCE_ID_IMAGE_COUNTDOWN} };
+           { COUNTDOWN, RESOURCE_ID_IMAGE_COUNTDOWN },
+           { CNTDWNCFG, RESOURCE_ID_IMAGE_CNTDWNCFG },
+};
 
 // The documentation claims this is defined, but it is not.
 // Define it here for now.
@@ -56,6 +61,7 @@ void start_stopwatch();
 void config_provider(ClickConfig **config, Window *window);
 // Hook to ticks
 void handle_timer(AppContextRef ctx, AppTimerHandle handle, uint32_t cookie);
+void config_watch(int appmode,int increment);
 
 // Custom vibration pattern
 const VibePattern start_pattern = {
@@ -83,6 +89,46 @@ GFont time_font;
 GFont date_day_font;
 int firstrun = STOPWATCH;  // Note not watch
 
+void config_watch(int appmode,int increment)
+{
+    int adjustnum = 0;
+
+    // even if running allow minute changes
+    switch(mapModeImage[modetick].mode)
+        {
+        // Ok so we want to lower countdown config
+        // Down in increments of 1 minute
+        case CNTDWNCFG:
+                adjustnum=ASECOND * 60;
+                break;
+
+        }
+
+
+        /* for non adjust appmodes does nothing as adjustnum is 0 */
+        time_t new_time=0;
+
+        /* if running adjust running time otherwise adjust config time */
+        if(yachtimer_isRunning(&myYachtTimer))
+        {
+                new_time =  yachtimer_getElapsed(&myYachtTimer) + (increment * adjustnum );
+                if(new_time > MAX_TIME) new_time = yachtimer_getElapsed(&myYachtTimer);
+                yachtimer_setElapsed(&myYachtTimer, new_time);
+        }
+        else
+        {
+                new_time =  yachtimer_getConfigTime(&myYachtTimer) + (increment * adjustnum );
+                // Cannot sert below 0
+                // Can set above max display time
+                // so keep it displayable
+                if(new_time > MAX_TIME) new_time = MAX_TIME;
+                yachtimer_setConfigTime(&myYachtTimer, new_time);
+
+        }
+
+
+}
+
 void start_stopwatch() {
     yachtimer_start(&myYachtTimer);
 
@@ -105,11 +151,10 @@ void start_stopwatch() {
 void toggle_mode(ClickRecognizerRef recognizer, Window *window) {
 
           // Can only set to first three
-          int mode=yachtimer_getMode(&myYachtTimer)+1;
-          yachtimer_setMode(&myYachtTimer,mode);
+	  modetick = (modetick == MODES) ?0:(modetick+1);
+          yachtimer_setMode(&myYachtTimer,mapModeImage[modetick].mode);
 
           // if beyond end mode set back to start
-          if(yachtimer_getMode(&myYachtTimer) != mode) yachtimer_setMode(&myYachtTimer,WATCHMODE);
           update_hand_positions();
             // Up the resolution to do deciseconds
             if(update_timer != APP_TIMER_INVALID_HANDLE) {
@@ -120,7 +165,7 @@ void toggle_mode(ClickRecognizerRef recognizer, Window *window) {
 
           for (int i=0;i<MODES;i++)
           {
-                layer_set_hidden( &modeImages[i].layer.layer, ((yachtimer_getMode(&myYachtTimer) == mapModeImage[i].mode)?false:true));
+                layer_set_hidden( &modeImages[i].layer.layer, ((mapModeImage[modetick].mode == mapModeImage[i].mode)?false:true));
           }
           ticks = 0;
 
@@ -141,21 +186,30 @@ void stop_stopwatch() {
     update_timer = app_timer_send_event(app, ASECOND, TIMER_UPDATE);
 }
 void toggle_stopwatch_handler(ClickRecognizerRef recognizer, Window *window) {
-    if(yachtimer_isRunning(&myYachtTimer)) {
-        stop_stopwatch();
-    } else {
-        start_stopwatch();
+    switch(mapModeImage[modetick].mode)
+    {
+	case YACHTIMER:
+	case STOPWATCH:
+	case COUNTDOWN:
+	    if(yachtimer_isRunning(&myYachtTimer)) {
+		stop_stopwatch();
+	    } else {
+		start_stopwatch();
+	    }
+	    break;
+	default:
+            config_watch(mapModeImage[modetick].mode,-1);
     }
 }
 void reset_stopwatch_handler(ClickRecognizerRef recognizer, Window *window) {
 
-    yachtimer_reset(&myYachtTimer);
 
-    switch(yachtimer_getMode(&myYachtTimer))
+    switch(mapModeImage[modetick].mode)
     {
         case STOPWATCH:
         case YACHTIMER:
         case COUNTDOWN:
+    	    yachtimer_reset(&myYachtTimer);
             if(yachtimer_isRunning(&myYachtTimer))
             {
                  stop_stopwatch();
@@ -165,15 +219,15 @@ void reset_stopwatch_handler(ClickRecognizerRef recognizer, Window *window) {
             {
                 stop_stopwatch();
             }
-	    // Force redisplay
-            update_hand_positions();
 
             break;
         default:
             ;
             // if not in config mode won't do anything which makes this easy
-            // config_watch(watchappmode,1);
+            config_watch(mapModeImage[modetick].mode,1);
     }
+    // Force redisplay
+    update_hand_positions();
 }
 //Creates the 12 dots representing the hour
 void minute_layer_create(Layer *me, GContext* ctx) {
@@ -319,14 +373,14 @@ void handle_init(AppContextRef ctx) {
   for (int i=0;i<MODES;i++)
   {
         bmp_init_container(mapModeImage[i].resourceid,&modeImages[i]);
-        layer_set_frame(&modeImages[i].layer.layer, GRect(0,0,12,16));
+        layer_set_frame(&modeImages[i].layer.layer, GRect(0,0,13,23));
         // layer_set_frame(&modeImages[i].layer.layer, GRect((144 - 12)/2,((144 - 16)/2)+ 25,12,16));
         layer_set_hidden( &modeImages[i].layer.layer, true);
         layer_add_child(&window.layer,&modeImages[i].layer.layer);
   }
   ticks = 0;
   // Set up a layer for the second hand
- yachtimer_init(&myYachtTimer,startappmode);
+ yachtimer_init(&myYachtTimer,mapModeImage[modetick].mode);
  yachtimer_setConfigTime(&myYachtTimer, ASECOND * 60 * 10);
  yachtimer_tick(&myYachtTimer,0);
  stop_stopwatch();
@@ -434,7 +488,7 @@ void update_hand_positions()
 }
 void config_provider(ClickConfig **config, Window *window) {
     config[BUTTON_RUN]->click.handler = (ClickHandler)toggle_stopwatch_handler;
-    config[BUTTON_LAP]->click.handler = (ClickHandler) toggle_mode;
+    config[BUTTON_LAP]->long_click.handler = (ClickHandler) toggle_mode;
     config[BUTTON_RESET]->click.handler = (ClickHandler)reset_stopwatch_handler;
 //    config[BUTTON_LAP]->click.handler = (ClickHandler)lap_time_handler;
 //    config[BUTTON_LAP]->long_click.handler = (ClickHandler)handle_display_lap_times;

@@ -42,8 +42,11 @@
         "type": "png",
         "defName": "IMAGE_COUNTDOWN",
         "file": "images/countdown.png"
+	},
+	{
+        "type": "png",
+        "defName": "IMAGE_CNTDWNCFG",
+        "file": "images/cntdwncfg.png"
 	}
  ]
 }
-
-
