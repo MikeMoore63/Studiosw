@@ -7,7 +7,7 @@
 #define MY_UUID { 0x89, 0xB4, 0x4E, 0x72, 0x1C, 0x63, 0x4D, 0xF5, 0xB1, 0x0E, 0x66, 0x13, 0xC5, 0x71, 0x56, 0xFB }
 PBL_APP_INFO(MY_UUID,
              "Studio StopWatch", "Mike Moore",
-             1, 2, /* App version */
+             1, 3, /* App version */
              DEFAULT_MENU_ICON,
              APP_INFO_STANDARD_APP);
 
@@ -143,7 +143,7 @@ void start_stopwatch() {
     }
     // Slow update down to once a second to save power
     ticklen = yachtimer_getTick(&myYachtTimer);
-    update_timer = app_timer_send_event(app, ASECOND, TIMER_UPDATE);
+    update_timer = app_timer_send_event(app, 1000, TIMER_UPDATE);
     firstrun=-3;
 
 }
@@ -170,7 +170,7 @@ void toggle_mode(ClickRecognizerRef recognizer, Window *window) {
           ticks = 0;
 
             ticklen = yachtimer_getTick(&myYachtTimer);
-            update_timer = app_timer_send_event(app, ASECOND, TIMER_UPDATE);
+            update_timer = app_timer_send_event(app, 1000, TIMER_UPDATE);
 }
 
 void stop_stopwatch() {
@@ -183,7 +183,7 @@ void stop_stopwatch() {
     }
     // Slow update down to once a second to save power
     ticklen = yachtimer_getTick(&myYachtTimer);
-    update_timer = app_timer_send_event(app, ASECOND, TIMER_UPDATE);
+    update_timer = app_timer_send_event(app, 1000, TIMER_UPDATE);
 }
 void toggle_stopwatch_handler(ClickRecognizerRef recognizer, Window *window) {
     switch(mapModeImage[modetick].mode)
@@ -393,7 +393,7 @@ void handle_timer(AppContextRef ctx, AppTimerHandle handle, uint32_t cookie ) {
    { 
 	  yachtimer_tick(&myYachtTimer,ASECOND);
 	  ticklen = yachtimer_getTick(&myYachtTimer);
-	  update_timer = app_timer_send_event(ctx, ASECOND, TIMER_UPDATE);
+	  update_timer = app_timer_send_event(ctx, 1000, TIMER_UPDATE);
           ticks++;
           if(ticks >= TICKREMOVE)
           {
