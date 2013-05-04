@@ -7,7 +7,7 @@
 #define MY_UUID { 0x89, 0xB4, 0x4E, 0x72, 0x1C, 0x63, 0x4D, 0xF5, 0xB1, 0x0E, 0x66, 0x13, 0xC5, 0x71, 0x56, 0xFB }
 PBL_APP_INFO(MY_UUID,
              "Studio StopWatch", "Mike Moore",
-             1, 1, /* App version */
+             1, 2, /* App version */
              DEFAULT_MENU_ICON,
              APP_INFO_STANDARD_APP);
 
@@ -428,7 +428,7 @@ void update_hand_positions()
 		char *time_format;
 
 		// Hour & Minute Formatting Type
-		if (clock_is_24h_style()) {
+		if (clock_is_24h_style() || yachtimer_getMode(&myYachtTimer)!=WATCHMODE) {
 		time_format = "%R";
 		} else {
 		time_format = "%I:%M";
@@ -446,10 +446,14 @@ void update_hand_positions()
 		text_layer_set_text(&time_display_layer, time_text);
 
 	  // Update on the hour every hour
-		if (!clock_is_24h_style()) {
+		if (!clock_is_24h_style() && yachtimer_getMode(&myYachtTimer)==WATCHMODE) {
 			static char ampm_text[] = "XX";
 			string_format_time(ampm_text, sizeof(ampm_text), "%p", pebble_time);
 			text_layer_set_text(&ampm_display_layer, ampm_text);
+		}
+		else
+		{
+			text_layer_set_text(&ampm_display_layer, "");
 		}
 
 		// Set day name text
