@@ -7,7 +7,7 @@
 #define MY_UUID { 0x89, 0xB4, 0x4E, 0x72, 0x1C, 0x63, 0x4D, 0xF5, 0xB1, 0x0E, 0x66, 0x13, 0xC5, 0x71, 0x56, 0xFB }
 PBL_APP_INFO(MY_UUID,
              "Studio StopWatch", "Mike Moore",
-             1, 3, /* App version */
+             1, 4, /* App version */
              DEFAULT_MENU_ICON,
              APP_INFO_STANDARD_APP);
 
