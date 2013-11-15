@@ -12,7 +12,7 @@
 
 Window *window;
 
-YachtTimer myYachtTimer;
+YachtTimer *myYachtTimer;
 int startappmode=WATCHMODE;
 int modetick=0;
 
@@ -107,20 +107,20 @@ void config_watch(int appmode,int increment)
         time_t new_time=0;
 
         /* if running adjust running time otherwise adjust config time */
-        if(yachtimer_isRunning(&myYachtTimer))
+        if(yachtimer_isRunning(myYachtTimer))
         {
-                new_time =  yachtimer_getElapsed(&myYachtTimer) + (increment * adjustnum );
-                if(new_time > MAX_TIME) new_time = yachtimer_getElapsed(&myYachtTimer);
-                yachtimer_setElapsed(&myYachtTimer, new_time);
+                new_time =  yachtimer_getElapsed(myYachtTimer) + (increment * adjustnum );
+                if(new_time > MAX_TIME) new_time = yachtimer_getElapsed(myYachtTimer);
+                yachtimer_setElapsed(myYachtTimer, new_time);
         }
         else
         {
-                new_time =  yachtimer_getConfigTime(&myYachtTimer) + (increment * adjustnum );
+                new_time =  yachtimer_getConfigTime(myYachtTimer) + (increment * adjustnum );
                 // Cannot sert below 0
                 // Can set above max display time
                 // so keep it displayable
                 if(new_time > MAX_TIME) new_time = MAX_TIME;
-                yachtimer_setConfigTime(&myYachtTimer, new_time);
+                yachtimer_setConfigTime(myYachtTimer, new_time);
 
         }
 
@@ -128,10 +128,10 @@ void config_watch(int appmode,int increment)
 }
 
 void start_stopwatch() {
-    yachtimer_start(&myYachtTimer);
+    yachtimer_start(myYachtTimer);
 
     // default start mode
-    startappmode = yachtimer_getMode(&myYachtTimer);;
+    startappmode = yachtimer_getMode(myYachtTimer);;
 
     // Up the resolution to do deciseconds
     if(update_timer != NULL) {
@@ -139,7 +139,7 @@ void start_stopwatch() {
         update_timer = NULL;
     }
     // Slow update down to once a second to save power
-    ticklen = yachtimer_getTick(&myYachtTimer);
+    ticklen = yachtimer_getTick(myYachtTimer);
     static uint32_t cookie = TIMER_UPDATE;
     update_timer = app_timer_register( 1000, handle_timer,  &cookie);
     firstrun=-3;
@@ -150,7 +150,7 @@ void toggle_mode(ClickRecognizerRef recognizer, void *data) {
 
           // Can only set to first three
 	  modetick = (modetick == MODES) ?0:(modetick+1);
-          yachtimer_setMode(&myYachtTimer,mapModeImage[modetick].mode);
+          yachtimer_setMode(myYachtTimer,mapModeImage[modetick].mode);
 
           // if beyond end mode set back to start
           update_hand_positions();
@@ -166,20 +166,20 @@ void toggle_mode(ClickRecognizerRef recognizer, void *data) {
           }
           ticks = 0;
 
-            ticklen = yachtimer_getTick(&myYachtTimer);
+            ticklen = yachtimer_getTick(myYachtTimer);
 	    static uint32_t cookie = TIMER_UPDATE;
             update_timer = app_timer_register( 1000, handle_timer,  &cookie);
 }
 
 void stop_stopwatch() {
 
-    yachtimer_stop(&myYachtTimer);
+    yachtimer_stop(myYachtTimer);
     if(update_timer != NULL) {
         app_timer_cancel( update_timer);
         update_timer = NULL;
     }
     // Slow update down to once a second to save power
-    ticklen = yachtimer_getTick(&myYachtTimer);
+    ticklen = yachtimer_getTick(myYachtTimer);
     static uint32_t cookie = TIMER_UPDATE;
     update_timer = app_timer_register( 1000, handle_timer,  &cookie);
 }
@@ -189,7 +189,7 @@ void toggle_stopwatch_handler(ClickRecognizerRef recognizer, void *data) {
 	case YACHTIMER:
 	case STOPWATCH:
 	case COUNTDOWN:
-	    if(yachtimer_isRunning(&myYachtTimer)) {
+	    if(yachtimer_isRunning(myYachtTimer)) {
 		stop_stopwatch();
 	    } else {
 		start_stopwatch();
@@ -207,8 +207,8 @@ void reset_stopwatch_handler(ClickRecognizerRef recognizer, void *data) {
         case STOPWATCH:
         case YACHTIMER:
         case COUNTDOWN:
-    	    yachtimer_reset(&myYachtTimer);
-            if(yachtimer_isRunning(&myYachtTimer))
+    	    yachtimer_reset(myYachtTimer);
+            if(yachtimer_isRunning(myYachtTimer))
             {
                  stop_stopwatch();
                  start_stopwatch();
@@ -249,7 +249,7 @@ void minute_layer_create(Layer *me, GContext* ctx) {
 void second_layer_update(Layer *me, GContext* ctx) {
 	 
 	struct tm  *t;
-	t=yachtimer_getPblDisplayTime(&myYachtTimer);	
+	t=yachtimer_getPblDisplayTime(myYachtTimer);	
 
         int32_t second_angle;
         int second_position_from_center = 62;
@@ -375,10 +375,20 @@ void handle_init() {
         layer_add_child((Layer *)window,(Layer *)modeImages[i]);
   }
   ticks = 0;
-  yachtimer_init(&myYachtTimer,mapModeImage[modetick].mode);
-  yachtimer_setConfigTime(&myYachtTimer, ASECOND * 60 * 10);
-  yachtimer_tick(&myYachtTimer,0);
-  stop_stopwatch();
+  myYachtTimer = yachtimer_create(mapModeImage[modetick].mode);
+  for (int i=0;i<MODES;i++)
+  {
+	if(yachtimer_getMode(myYachtTimer) == mapModeImage[i].mode)
+	{
+		modetick = i;
+		break;
+	}
+  }
+  yachtimer_tick(myYachtTimer,0);
+  // Slow update down to once a second to save power
+  ticklen = yachtimer_getTick(myYachtTimer);
+  static uint32_t cookie = TIMER_UPDATE;
+  update_timer = app_timer_register( 1000, handle_timer,  &cookie);
 }
 
 void handle_timer(void  *data ) {
@@ -386,8 +396,8 @@ void handle_timer(void  *data ) {
 
    if(cookie == TIMER_UPDATE)
    { 
-	  yachtimer_tick(&myYachtTimer,ASECOND);
-	  ticklen = yachtimer_getTick(&myYachtTimer);
+	  yachtimer_tick(myYachtTimer,ASECOND);
+	  ticklen = yachtimer_getTick(myYachtTimer);
 	  update_timer = app_timer_register( 1000, handle_timer,  data);
           ticks++;
           if(ticks >= TICKREMOVE)
@@ -397,7 +407,7 @@ void handle_timer(void  *data ) {
                         layer_set_hidden( (Layer *)modeImages[i], true);
                 }
           }
-	  theTimeEventType event = yachtimer_triggerEvent(&myYachtTimer);
+	  theTimeEventType event = yachtimer_triggerEvent(myYachtTimer);
 
   	if(event == MinorTime) vibes_double_pulse();
   	if(event == MajorTime) vibes_enqueue_custom_pattern(start_pattern);
@@ -409,13 +419,13 @@ void update_hand_positions()
 {
 
 	  struct tm *pebble_time;
-	  pebble_time=yachtimer_getPblDisplayTime(&myYachtTimer);	
+	  pebble_time=yachtimer_getPblDisplayTime(myYachtTimer);	
 	  
 	  //Update Second Display every second 
 	  #if DISPLAY_SECONDS
 	  layer_mark_dirty(second_layer);
 	  #endif  
-          int modenow = yachtimer_getMode(&myYachtTimer);
+          int modenow = yachtimer_getMode(myYachtTimer);
 
 	  // Update Every Minute
 
@@ -423,7 +433,7 @@ void update_hand_positions()
 		char *time_format;
 
 		// Hour & Minute Formatting Type
-		if (clock_is_24h_style() || yachtimer_getMode(&myYachtTimer)!=WATCHMODE) {
+		if (clock_is_24h_style() || yachtimer_getMode(myYachtTimer)!=WATCHMODE) {
 		time_format = "%R";
 		} else {
 		time_format = "%I:%M";
@@ -441,7 +451,7 @@ void update_hand_positions()
 		text_layer_set_text(time_display_layer, time_text);
 
 	  // Update on the hour every hour
-		if (!clock_is_24h_style() && yachtimer_getMode(&myYachtTimer)==WATCHMODE) {
+		if (!clock_is_24h_style() && yachtimer_getMode(myYachtTimer)==WATCHMODE) {
 			static char ampm_text[] = "XX";
 			strftime(ampm_text, sizeof(ampm_text), "%p", pebble_time);
 			text_layer_set_text(ampm_display_layer, ampm_text);
@@ -456,7 +466,7 @@ void update_hand_positions()
 		{
 			static char day_text[] = "Xxxxxxxxx";
 			#if DISPLAY_DAY
-			strftime(day_text, sizeof(day_text), "%A", yachtimer_getPblLastTime(&myYachtTimer));
+			strftime(day_text, sizeof(day_text), "%A", yachtimer_getPblLastTime(myYachtTimer));
 			text_layer_set_text(day_display_layer, day_text);
 			#endif
 		}
@@ -465,9 +475,9 @@ void update_hand_positions()
 		static char date_text[] = "00/00/0000";
 		#if DISPLAY_DATE
 		#if US_DATE
-		strftime(date_text, sizeof(date_text), "%m/%d/%Y", yachtimer_getPblLastTime(&myYachtTimer));
+		strftime(date_text, sizeof(date_text), "%m/%d/%Y", yachtimer_getPblLastTime(myYachtTimer));
 		#else
-		strftime(date_text, sizeof(date_text), "%d/%m/%Y", yachtimer_getPblLastTime(&myYachtTimer));
+		strftime(date_text, sizeof(date_text), "%d/%m/%Y", yachtimer_getPblLastTime(myYachtTimer));
 		#endif
 		text_layer_set_text(date_display_layer, date_text);
 		#endif
@@ -512,6 +522,7 @@ void handle_deinit() {
   layer_destroy(minute_layer);
   layer_destroy(second_layer);
   window_destroy(window);
+  yachtimer_destroy(myYachtTimer);
 }
 
 int main(void) {
