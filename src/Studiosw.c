@@ -1,18 +1,16 @@
-#include "pebble_os.h"
-#include "pebble_app.h"
-#include "pebble_fonts.h"
+#include <pebble.h>
 #include "yachtimermodel.h"
 
+// Removed for version 2.0 SDK
+// #define MY_UUID { 0x89, 0xB4, 0x4E, 0x72, 0x1C, 0x63, 0x4D, 0xF5, 0xB1, 0x0E, 0x66, 0x13, 0xC5, 0x71, 0x56, 0xFB }
+// PBL_APP_INFO(MY_UUID,
+//             "Studio StopWatch", "Mike Moore",
+//             1, 4, /* App version */
+//             DEFAULT_MENU_ICON,
+//             APP_INFO_STANDARD_APP);
+// 
 
-#define MY_UUID { 0x89, 0xB4, 0x4E, 0x72, 0x1C, 0x63, 0x4D, 0xF5, 0xB1, 0x0E, 0x66, 0x13, 0xC5, 0x71, 0x56, 0xFB }
-PBL_APP_INFO(MY_UUID,
-             "Studio StopWatch", "Mike Moore",
-             1, 4, /* App version */
-             DEFAULT_MENU_ICON,
-             APP_INFO_STANDARD_APP);
-
-Window window;
-AppContextRef app;
+Window *window;
 
 YachtTimer myYachtTimer;
 int startappmode=WATCHMODE;
@@ -30,7 +28,8 @@ int modetick=0;
 int ticks=0;
 
 
-BmpContainer modeImages[MODES];
+BitmapLayer  *modeImages[MODES];
+GBitmap  *images[MODES];
 
 struct modresource {
         int mode;
@@ -46,21 +45,21 @@ struct modresource {
 // The documentation claims this is defined, but it is not.
 // Define it here for now.
 #ifndef APP_TIMER_INVALID_HANDLE
-    #define APP_TIMER_INVALID_HANDLE 0xDEADBEEF
+    #define APP_TIMER_INVALID_HANDLE NULL
 #endif
 
 // Actually keeping track of time
-static AppTimerHandle update_timer = APP_TIMER_INVALID_HANDLE;
+static AppTimer *update_timer = NULL;
 static int ticklen=0;
 
-void toggle_stopwatch_handler(ClickRecognizerRef recognizer, Window *window);
-void toggle_mode(ClickRecognizerRef recognizer, Window *window);
-void reset_stopwatch_handler(ClickRecognizerRef recognizer, Window *window);
+void toggle_stopwatch_handler(ClickRecognizerRef recognizer, void *data);
+void toggle_mode(ClickRecognizerRef recognizer, void *data);
+void reset_stopwatch_handler(ClickRecognizerRef recognizer, void *data);
 void stop_stopwatch();
 void start_stopwatch();
-void config_provider(ClickConfig **config, Window *window);
+void config_provider( void *context);
 // Hook to ticks
-void handle_timer(AppContextRef ctx, AppTimerHandle handle, uint32_t cookie);
+void handle_timer(void *data);
 void config_watch(int appmode,int increment);
 
 // Custom vibration pattern
@@ -77,14 +76,13 @@ void update_hand_positions();
 #define DISPLAY_DATE true
 #define USE_SCOREBOARD false
 
-Window window;
 
-Layer minute_layer;
-Layer second_layer;
-TextLayer time_display_layer;
-TextLayer date_display_layer;
-TextLayer day_display_layer;
-TextLayer ampm_display_layer;
+Layer *minute_layer;
+Layer *second_layer;
+TextLayer *time_display_layer;
+TextLayer *date_display_layer = NULL;
+TextLayer *day_display_layer;
+TextLayer *ampm_display_layer;
 GFont time_font;
 GFont date_day_font;
 int firstrun = STOPWATCH;  // Note not watch
@@ -136,19 +134,19 @@ void start_stopwatch() {
     startappmode = yachtimer_getMode(&myYachtTimer);;
 
     // Up the resolution to do deciseconds
-    if(update_timer != APP_TIMER_INVALID_HANDLE) {
-        if(app_timer_cancel_event(app, update_timer)) {
-            update_timer = APP_TIMER_INVALID_HANDLE;
-        }
+    if(update_timer != NULL) {
+        app_timer_cancel( update_timer);
+        update_timer = NULL;
     }
     // Slow update down to once a second to save power
     ticklen = yachtimer_getTick(&myYachtTimer);
-    update_timer = app_timer_send_event(app, 1000, TIMER_UPDATE);
+    static uint32_t cookie = TIMER_UPDATE;
+    update_timer = app_timer_register( 1000, handle_timer,  &cookie);
     firstrun=-3;
 
 }
 // Toggle stopwatch timer mode
-void toggle_mode(ClickRecognizerRef recognizer, Window *window) {
+void toggle_mode(ClickRecognizerRef recognizer, void *data) {
 
           // Can only set to first three
 	  modetick = (modetick == MODES) ?0:(modetick+1);
@@ -157,35 +155,35 @@ void toggle_mode(ClickRecognizerRef recognizer, Window *window) {
           // if beyond end mode set back to start
           update_hand_positions();
             // Up the resolution to do deciseconds
-            if(update_timer != APP_TIMER_INVALID_HANDLE) {
-                if(app_timer_cancel_event(app, update_timer)) {
-                    update_timer = APP_TIMER_INVALID_HANDLE;
-                }
+            if(update_timer != NULL) {
+                app_timer_cancel( update_timer);
+                update_timer = NULL;
             }
 
           for (int i=0;i<MODES;i++)
           {
-                layer_set_hidden( &modeImages[i].layer.layer, ((mapModeImage[modetick].mode == mapModeImage[i].mode)?false:true));
+                layer_set_hidden( (Layer *)modeImages[i], ((mapModeImage[modetick].mode == mapModeImage[i].mode)?false:true));
           }
           ticks = 0;
 
             ticklen = yachtimer_getTick(&myYachtTimer);
-            update_timer = app_timer_send_event(app, 1000, TIMER_UPDATE);
+	    static uint32_t cookie = TIMER_UPDATE;
+            update_timer = app_timer_register( 1000, handle_timer,  &cookie);
 }
 
 void stop_stopwatch() {
 
     yachtimer_stop(&myYachtTimer);
-    if(update_timer != APP_TIMER_INVALID_HANDLE) {
-        if(app_timer_cancel_event(app, update_timer)) {
-            update_timer = APP_TIMER_INVALID_HANDLE;
-        }
+    if(update_timer != NULL) {
+        app_timer_cancel( update_timer);
+        update_timer = NULL;
     }
     // Slow update down to once a second to save power
     ticklen = yachtimer_getTick(&myYachtTimer);
-    update_timer = app_timer_send_event(app, 1000, TIMER_UPDATE);
+    static uint32_t cookie = TIMER_UPDATE;
+    update_timer = app_timer_register( 1000, handle_timer,  &cookie);
 }
-void toggle_stopwatch_handler(ClickRecognizerRef recognizer, Window *window) {
+void toggle_stopwatch_handler(ClickRecognizerRef recognizer, void *data) {
     switch(mapModeImage[modetick].mode)
     {
 	case YACHTIMER:
@@ -201,7 +199,7 @@ void toggle_stopwatch_handler(ClickRecognizerRef recognizer, Window *window) {
             config_watch(mapModeImage[modetick].mode,-1);
     }
 }
-void reset_stopwatch_handler(ClickRecognizerRef recognizer, Window *window) {
+void reset_stopwatch_handler(ClickRecognizerRef recognizer, void *data) {
 
 
     switch(mapModeImage[modetick].mode)
@@ -231,13 +229,12 @@ void reset_stopwatch_handler(ClickRecognizerRef recognizer, Window *window) {
 }
 //Creates the 12 dots representing the hour
 void minute_layer_create(Layer *me, GContext* ctx) {
-	(void)me;
 	int32_t minute_angle;
 	int minute_position_from_center = 69;
 	int i;
 	GPoint minute_dot_position;
-	
-	GPoint center = grect_center_point(&me->frame);
+        GRect lframe = layer_get_frame(me);	
+	GPoint center = grect_center_point(&lframe);
 	graphics_context_set_fill_color(ctx, GColorWhite);
 
 	for(i = 0; i < 12; i++) {
@@ -250,17 +247,16 @@ void minute_layer_create(Layer *me, GContext* ctx) {
 
 //Updates the seconds when called to the number of seconds at the moment
 void second_layer_update(Layer *me, GContext* ctx) {
-	(void)me;
 	 
-	PblTm *t;
+	struct tm  *t;
 	t=yachtimer_getPblDisplayTime(&myYachtTimer);	
 
         int32_t second_angle;
         int second_position_from_center = 62;
         int i;
         GPoint second_dot_position;
-
-        GPoint center = grect_center_point(&me->frame);
+	GRect lframe = layer_get_frame(me);
+        GPoint center = grect_center_point(&lframe);
         graphics_context_set_fill_color(ctx, GColorWhite);
 
 	for(i=0; i < 60; i++)
@@ -283,17 +279,15 @@ const VibePattern hour_pattern = {
 };
 #endif
 
-void handle_init(AppContextRef ctx) {
-  app=ctx;
+void handle_init() {
 
-  window_init(&window, "StudioClock");
-  window_stack_push(&window, true /* Animated */);
-  window_set_fullscreen(&window, true);
-  window_set_background_color(&window, GColorBlack);
+  window = window_create();
+  window_set_fullscreen(window, true);
+  window_stack_push(window, true /* Animated */);
+  window_set_background_color(window, GColorBlack);
 
-  resource_init_current_app(&APP_RESOURCES);
   // Arrange for user input.
-  window_set_click_config_provider(&window, (ClickConfigProvider) config_provider);
+  window_set_click_config_provider(window,  config_provider);
 
   //Define Fonts
   #if USE_SCOREBOARD
@@ -306,100 +300,101 @@ void handle_init(AppContextRef ctx) {
   //Time Display Layer
   if (!clock_is_24h_style()){
 	#if USE_SCOREBOARD
-        text_layer_init(&time_display_layer, GRect(19, 60, 103, 40)); //For Scoreboard (12H Mode)
+        time_display_layer = text_layer_create(GRect(19, 60, 103, 40)); //For Scoreboard (12H Mode)
 	#else
-	text_layer_init(&time_display_layer, GRect(30, 56, 74, 45)); //For Digital 7 (12H Mode)
+	time_display_layer = text_layer_create(GRect(30, 56, 74, 45)); //For Digital 7 (12H Mode)
 	#endif
   }
   else {
 	#if USE_SCOREBOARD
-        text_layer_init(&time_display_layer, GRect(19, 60, 103, 40)); //For Scoreboard (24H Mode)
+        time_display_layer = text_layer_create(GRect(19, 60, 103, 40)); //For Scoreboard (24H Mode)
 	#else
-	text_layer_init(&time_display_layer, GRect(26, 56, 92, 45)); //For Digital 7 (24H Mode)
+        time_display_layer = text_layer_create(GRect(26, 56, 92, 45)); //For Digital 7 (24H Mode)
 	#endif
   }
-  text_layer_set_text_color(&time_display_layer, GColorWhite);
-  text_layer_set_background_color(&time_display_layer, GColorClear);
-  text_layer_set_font(&time_display_layer, time_font);
-  text_layer_set_text_alignment(&time_display_layer, GTextAlignmentCenter);
-  layer_add_child(&window.layer, &time_display_layer.layer);
+  text_layer_set_text_color(time_display_layer, GColorWhite);
+  text_layer_set_background_color(time_display_layer, GColorClear);
+  text_layer_set_font(time_display_layer, time_font);
+  text_layer_set_text_alignment(time_display_layer, GTextAlignmentCenter);
+  layer_add_child((Layer *)window, (Layer *)time_display_layer);
 
   //Date_Display Layer
-  #if DISPLAY_DATE
-  text_layer_init(&date_display_layer, GRect(31, 42, 82, 20));
-  text_layer_set_text_color(&date_display_layer, GColorWhite);
-  text_layer_set_background_color(&date_display_layer, GColorClear);
-  text_layer_set_font(&date_display_layer, date_day_font);
-  text_layer_set_text_alignment(&date_display_layer, GTextAlignmentCenter);
-  layer_add_child(&window.layer, &date_display_layer.layer);
-  #endif
+  // #if DISPLAY_DATE
+  date_display_layer = text_layer_create(GRect(31, 42, 82, 20));
+  text_layer_set_text_color(date_display_layer, GColorWhite);
+  text_layer_set_background_color(date_display_layer, GColorClear);
+  text_layer_set_font(date_display_layer, date_day_font);
+  text_layer_set_text_alignment(date_display_layer, GTextAlignmentCenter);
+  layer_add_child((Layer *)window, (Layer *)date_display_layer);
+  // #endif
 
   //Day_Display Layer
-  #if DISPLAY_DAY
-  text_layer_init(&day_display_layer, GRect(31, 106, 82, 20));
-  text_layer_set_text_color(&day_display_layer, GColorWhite);
-  text_layer_set_background_color(&day_display_layer, GColorClear);
-  text_layer_set_font(&day_display_layer, date_day_font);
-  text_layer_set_text_alignment(&day_display_layer, GTextAlignmentCenter);
-  layer_add_child(&window.layer, &day_display_layer.layer);
-  #endif
+  // #if DISPLAY_DAY removed to ensure memory management is consistent simplifies testing and reduces bugs
+  day_display_layer = text_layer_create(GRect(31, 106, 82, 20));
+  text_layer_set_text_color(day_display_layer, GColorWhite);
+  text_layer_set_background_color(day_display_layer, GColorClear);
+  text_layer_set_font(day_display_layer, date_day_font);
+  text_layer_set_text_alignment(day_display_layer, GTextAlignmentCenter);
+  layer_add_child((Layer *)window, (Layer *)day_display_layer);
+  // #endif
 
   //AM PM Layer
-  if (!clock_is_24h_style()){
-  text_layer_init(&ampm_display_layer, window.layer.frame);
-  text_layer_set_text_color(&ampm_display_layer, GColorWhite);
-  text_layer_set_background_color(&ampm_display_layer, GColorClear);
+  // if (!clock_is_24h_style()){
   #if USE_SCOREBOARD
-  layer_set_frame(&ampm_display_layer.layer, GRect(64, 121, 20, 18));
+  ampm_display_layer = text_layer_create(GRect(64, 121, 20, 18));
   #else
-  layer_set_frame(&ampm_display_layer.layer, GRect(107, 83, 20, 18));
+  ampm_display_layer = text_layer_create(GRect(107, 83, 20, 18));
   #endif
-  text_layer_set_font(&ampm_display_layer, date_day_font);
-  text_layer_set_text_alignment(&ampm_display_layer, GTextAlignmentLeft);
-  layer_add_child(&window.layer, &ampm_display_layer.layer);  
-  }
+  text_layer_set_text_color(ampm_display_layer, GColorWhite);
+  text_layer_set_background_color(ampm_display_layer, GColorClear);
+  text_layer_set_font(ampm_display_layer, date_day_font);
+  layer_add_child((Layer *)window, (Layer *)ampm_display_layer);  
+  // }
 
   //Minute Layer
-  layer_init(&minute_layer, window.layer.frame);
-  minute_layer.update_proc = &minute_layer_create;
-  layer_add_child(&window.layer, &minute_layer);
+  minute_layer = layer_create(layer_get_frame( (Layer *)window));
+  layer_set_update_proc(minute_layer,minute_layer_create);
+  // minute_layer.update_proc = minute_layer_create;
+  layer_add_child((Layer *)window, (Layer *)minute_layer);
 
   //Second Layer
-  layer_init(&second_layer, window.layer.frame);
-  second_layer.update_proc = &second_layer_update;
-  layer_add_child(&window.layer, &second_layer);
+  second_layer = layer_create(layer_get_frame((Layer *)window));
+  layer_set_update_proc(second_layer, second_layer_update);
+  // second_layer.update_proc = &second_layer_update;
+  layer_add_child((Layer *)window, (Layer*)second_layer);
 
   // Mode icons
   for (int i=0;i<MODES;i++)
   {
-        bmp_init_container(mapModeImage[i].resourceid,&modeImages[i]);
-        layer_set_frame(&modeImages[i].layer.layer, GRect(0,0,13,23));
+	images[i] = gbitmap_create_with_resource( mapModeImage[i].resourceid);
+	modeImages[i] = bitmap_layer_create(images[i]->bounds);
+        bitmap_layer_set_bitmap(modeImages[i],images[i]);
+        layer_set_frame((Layer *)modeImages[i], GRect(0,0,13,23));
         // layer_set_frame(&modeImages[i].layer.layer, GRect((144 - 12)/2,((144 - 16)/2)+ 25,12,16));
-        layer_set_hidden( &modeImages[i].layer.layer, true);
-        layer_add_child(&window.layer,&modeImages[i].layer.layer);
+        layer_set_hidden( (Layer *)modeImages[i], true);
+        layer_add_child((Layer *)window,(Layer *)modeImages[i]);
   }
   ticks = 0;
-  // Set up a layer for the second hand
- yachtimer_init(&myYachtTimer,mapModeImage[modetick].mode);
- yachtimer_setConfigTime(&myYachtTimer, ASECOND * 60 * 10);
- yachtimer_tick(&myYachtTimer,0);
- stop_stopwatch();
+  yachtimer_init(&myYachtTimer,mapModeImage[modetick].mode);
+  yachtimer_setConfigTime(&myYachtTimer, ASECOND * 60 * 10);
+  yachtimer_tick(&myYachtTimer,0);
+  stop_stopwatch();
 }
 
-void handle_timer(AppContextRef ctx, AppTimerHandle handle, uint32_t cookie ) {
-  (void)ctx;
+void handle_timer(void  *data ) {
+   uint32_t cookie = *(uint32_t *)data;
 
    if(cookie == TIMER_UPDATE)
    { 
 	  yachtimer_tick(&myYachtTimer,ASECOND);
 	  ticklen = yachtimer_getTick(&myYachtTimer);
-	  update_timer = app_timer_send_event(ctx, 1000, TIMER_UPDATE);
+	  update_timer = app_timer_register( 1000, handle_timer,  data);
           ticks++;
           if(ticks >= TICKREMOVE)
           {
                 for(int i=0;i<MODES;i++)
                 {
-                        layer_set_hidden( &modeImages[i].layer.layer, true);
+                        layer_set_hidden( (Layer *)modeImages[i], true);
                 }
           }
 	  theTimeEventType event = yachtimer_triggerEvent(&myYachtTimer);
@@ -413,12 +408,12 @@ void handle_timer(AppContextRef ctx, AppTimerHandle handle, uint32_t cookie ) {
 void update_hand_positions()
 {
 
-	  PblTm *pebble_time;
+	  struct tm *pebble_time;
 	  pebble_time=yachtimer_getPblDisplayTime(&myYachtTimer);	
 	  
 	  //Update Second Display every second 
 	  #if DISPLAY_SECONDS
-	  layer_mark_dirty(&second_layer);
+	  layer_mark_dirty(second_layer);
 	  #endif  
           int modenow = yachtimer_getMode(&myYachtTimer);
 
@@ -435,7 +430,7 @@ void update_hand_positions()
 		}
 
 		// Hour & Minute Formatting and Update
-		string_format_time(time_text, sizeof(time_text), time_format, pebble_time);
+		strftime(time_text, sizeof(time_text), time_format, pebble_time);
 
 		// Kludge to handle lack of non-padded hour format string
 		// for twelve hour clock.
@@ -443,39 +438,38 @@ void update_hand_positions()
 		memmove(time_text, &time_text[1], sizeof(time_text) - 1);
 		}
 
-		text_layer_set_text(&time_display_layer, time_text);
+		text_layer_set_text(time_display_layer, time_text);
 
 	  // Update on the hour every hour
 		if (!clock_is_24h_style() && yachtimer_getMode(&myYachtTimer)==WATCHMODE) {
 			static char ampm_text[] = "XX";
-			string_format_time(ampm_text, sizeof(ampm_text), "%p", pebble_time);
-			text_layer_set_text(&ampm_display_layer, ampm_text);
+			strftime(ampm_text, sizeof(ampm_text), "%p", pebble_time);
+			text_layer_set_text(ampm_display_layer, ampm_text);
 		}
 		else
 		{
-			text_layer_set_text(&ampm_display_layer, "");
+			text_layer_set_text(ampm_display_layer, "");
 		}
 
 		// Set day name text
-		#if DISPLAY_DAY
 		if(modenow == WATCHMODE)
 		{
 			static char day_text[] = "Xxxxxxxxx";
-			string_format_time(day_text, sizeof(day_text), "%A", yachtimer_getPblLastTime(&myYachtTimer));
-			text_layer_set_text(&day_display_layer, day_text);
+			#if DISPLAY_DAY
+			strftime(day_text, sizeof(day_text), "%A", yachtimer_getPblLastTime(&myYachtTimer));
+			text_layer_set_text(day_display_layer, day_text);
+			#endif
 		}
-		#endif
 
 		// Set date text
-		#if DISPLAY_DATE
 		static char date_text[] = "00/00/0000";
+		#if DISPLAY_DATE
 		#if US_DATE
-		string_format_time(date_text, sizeof(date_text), "%m/%d/%Y", yachtimer_getPblLastTime(&myYachtTimer));
+		strftime(date_text, sizeof(date_text), "%m/%d/%Y", yachtimer_getPblLastTime(&myYachtTimer));
 		#else
-		string_format_time(date_text, sizeof(date_text), "%d/%m/%Y", yachtimer_getPblLastTime(&myYachtTimer));
+		strftime(date_text, sizeof(date_text), "%d/%m/%Y", yachtimer_getPblLastTime(&myYachtTimer));
 		#endif
-
-			text_layer_set_text(&date_display_layer, date_text);
+		text_layer_set_text(date_display_layer, date_text);
 		#endif
 
 	  // Vibrate Every Hour
@@ -490,26 +484,42 @@ void update_hand_positions()
 		firstrun = modenow;
 	  }
 }
-void config_provider(ClickConfig **config, Window *window) {
-    config[BUTTON_RUN]->click.handler = (ClickHandler)toggle_stopwatch_handler;
-    config[BUTTON_LAP]->long_click.handler = (ClickHandler) toggle_mode;
-    config[BUTTON_RESET]->click.handler = (ClickHandler)reset_stopwatch_handler;
+void config_provider( void *context) {
+    window_single_click_subscribe(BUTTON_RUN,toggle_stopwatch_handler);
+    // config[BUTTON_RUN]->click.handler = (ClickHandler)toggle_stopwatch_handler;
+    window_long_click_subscribe(BUTTON_LAP, 1000,  toggle_mode, NULL);
+    // config[BUTTON_LAP]->long_click.handler = (ClickHandler) toggle_mode;
+    window_single_click_subscribe(BUTTON_RESET, reset_stopwatch_handler);
+    // config[BUTTON_RESET]->click.handler = (ClickHandler)reset_stopwatch_handler;
 //    config[BUTTON_LAP]->click.handler = (ClickHandler)lap_time_handler;
 //    config[BUTTON_LAP]->long_click.handler = (ClickHandler)handle_display_lap_times;
 //    config[BUTTON_LAP]->long_click.delay_ms = 700;
-    (void)window;
 }
   
-void handle_deinit(AppContextRef ctx) {
-  (void)ctx;
+void handle_deinit() {
 
   for(int i=0;i<MODES;i++)
-        bmp_deinit_container(&modeImages[i]);
+  {
+        bitmap_layer_destroy(modeImages[i]);
+        gbitmap_destroy(images[i]);
+  }
+  text_layer_destroy(time_display_layer);
+  text_layer_destroy(date_display_layer);
+  text_layer_destroy(ampm_display_layer);
 
   fonts_unload_custom_font(time_font);
   fonts_unload_custom_font(date_day_font);
+  layer_destroy(minute_layer);
+  layer_destroy(second_layer);
+  window_destroy(window);
 }
 
+int main(void) {
+        handle_init();
+        app_event_loop();
+        handle_deinit();
+}
+/*
 void pbl_main(void *params) {
   PebbleAppHandlers handlers = {
     .init_handler = &handle_init,
@@ -518,3 +528,4 @@ void pbl_main(void *params) {
   };
   app_event_loop(params, &handlers);
 }
+*/
