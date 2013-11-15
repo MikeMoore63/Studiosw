@@ -1,0 +1,59 @@
+{
+  "uuid": "764bb18d-1c63-4df5-b10e-6613c57156fb",
+  "shortName": "Studio StopWatch",
+  "longName": "Studio StopWatch",
+  "companyName": "Mike Moore",
+  "versionCode": 1,
+  "versionLabel": "1.4.0",
+  "watchapp": {
+    "watchface": false
+  },
+  "appKeys": {},
+  "resources": {
+    "media": [
+      {
+        "characterRegex": "[:0-9]",
+        "type": "font",
+        "name": "FONT_DIGITAL_SEVEN_43",
+        "file": "fonts/digital-7.ttf"
+      },
+      {
+        "characterRegex": "[:0-9]",
+        "type": "font",
+        "name": "FONT_SCOREBOARD_35",
+        "file": "fonts/scoreboard.ttf"
+      },
+      {
+        "characterRegex": "[a-zA-Z0-9//]",
+        "type": "font",
+        "name": "FONT_DIGITAL_SEVEN_16",
+        "file": "fonts/digital-7.ttf"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_WATCH",
+        "file": "images/watch.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_STOPWATCH",
+        "file": "images/stopwatch.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_YACHTTIMER",
+        "file": "images/yachttimer.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_COUNTDOWN",
+        "file": "images/countdown.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_CNTDWNCFG",
+        "file": "images/cntdwncfg.png"
+      }
+    ]
+  }
+}
