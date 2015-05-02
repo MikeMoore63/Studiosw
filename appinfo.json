@@ -4,7 +4,7 @@
   "longName": "Studio StopWatch",
   "companyName": "Mike Moore",
   "versionCode": 1,
-  "versionLabel": "2.1",
+  "versionLabel": "3.0",
   "watchapp": {
     "watchface": false
   },
@@ -55,5 +55,10 @@
         "file": "images/cntdwncfg.png"
       }
     ]
-  }
+  },
+  "targetPlatforms": [
+    "aplite",
+    "basalt"
+  ],
+  "sdkVersion": "3"
 }

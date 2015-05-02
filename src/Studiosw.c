@@ -367,7 +367,7 @@ void handle_init() {
   for (int i=0;i<MODES;i++)
   {
 	images[i] = gbitmap_create_with_resource( mapModeImage[i].resourceid);
-	modeImages[i] = bitmap_layer_create(images[i]->bounds);
+	modeImages[i] = bitmap_layer_create(gbitmap_get_bounds(images[i]));
         bitmap_layer_set_bitmap(modeImages[i],images[i]);
         layer_set_frame((Layer *)modeImages[i], GRect(0,0,13,23));
         // layer_set_frame(&modeImages[i].layer.layer, GRect((144 - 12)/2,((144 - 16)/2)+ 25,12,16));
