@@ -282,7 +282,10 @@ const VibePattern hour_pattern = {
 void handle_init() {
 
   window = window_create();
+#ifdef PBL_SDK_3
+#else
   window_set_fullscreen(window, true);
+#endif
   window_stack_push(window, true /* Animated */);
   window_set_background_color(window, GColorBlack);
 
