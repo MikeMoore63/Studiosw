@@ -86,6 +86,9 @@ TextLayer *ampm_display_layer;
 GFont time_font;
 GFont date_day_font;
 int firstrun = STOPWATCH;  // Note not watch
+GColor minuteColor,secondColor,fontColor;
+
+
 
 void config_watch(int appmode,int increment)
 {
@@ -235,7 +238,7 @@ void minute_layer_create(Layer *me, GContext* ctx) {
 	GPoint minute_dot_position;
         GRect lframe = layer_get_frame(me);	
 	GPoint center = grect_center_point(&lframe);
-	graphics_context_set_fill_color(ctx, GColorWhite);
+	graphics_context_set_fill_color(ctx, minuteColor);
 
 	for(i = 0; i < 12; i++) {
 		minute_angle = i * (0xffff/12);
@@ -257,7 +260,7 @@ void second_layer_update(Layer *me, GContext* ctx) {
         GPoint second_dot_position;
 	GRect lframe = layer_get_frame(me);
         GPoint center = grect_center_point(&lframe);
-        graphics_context_set_fill_color(ctx, GColorWhite);
+        graphics_context_set_fill_color(ctx, secondColor);
 
 	for(i=0; i < 60; i++)
 	{
@@ -282,6 +285,16 @@ const VibePattern hour_pattern = {
 void handle_init() {
 
   window = window_create();
+  minuteColor=GColorWhite;
+  secondColor=GColorWhite;
+  fontColor=GColorWhite;
+
+#ifdef PBL_COLOR
+  minuteColor=GColorGreen;
+  secondColor=GColorRed;
+  fontColor=GColorGreen;
+#endif
+
 #ifdef PBL_SDK_3
 #else
   window_set_fullscreen(window, true);
@@ -315,7 +328,7 @@ void handle_init() {
         time_display_layer = text_layer_create(GRect(26, 56, 92, 45)); //For Digital 7 (24H Mode)
 	#endif
   }
-  text_layer_set_text_color(time_display_layer, GColorWhite);
+  text_layer_set_text_color(time_display_layer, fontColor);
   text_layer_set_background_color(time_display_layer, GColorClear);
   text_layer_set_font(time_display_layer, time_font);
   text_layer_set_text_alignment(time_display_layer, GTextAlignmentCenter);
@@ -324,7 +337,7 @@ void handle_init() {
   //Date_Display Layer
   // #if DISPLAY_DATE
   date_display_layer = text_layer_create(GRect(31, 42, 82, 20));
-  text_layer_set_text_color(date_display_layer, GColorWhite);
+  text_layer_set_text_color(date_display_layer, fontColor);
   text_layer_set_background_color(date_display_layer, GColorClear);
   text_layer_set_font(date_display_layer, date_day_font);
   text_layer_set_text_alignment(date_display_layer, GTextAlignmentCenter);
@@ -334,7 +347,7 @@ void handle_init() {
   //Day_Display Layer
   // #if DISPLAY_DAY removed to ensure memory management is consistent simplifies testing and reduces bugs
   day_display_layer = text_layer_create(GRect(31, 106, 82, 20));
-  text_layer_set_text_color(day_display_layer, GColorWhite);
+  text_layer_set_text_color(day_display_layer, fontColor);
   text_layer_set_background_color(day_display_layer, GColorClear);
   text_layer_set_font(day_display_layer, date_day_font);
   text_layer_set_text_alignment(day_display_layer, GTextAlignmentCenter);
@@ -348,7 +361,7 @@ void handle_init() {
   #else
   ampm_display_layer = text_layer_create(GRect(107, 83, 20, 18));
   #endif
-  text_layer_set_text_color(ampm_display_layer, GColorWhite);
+  text_layer_set_text_color(ampm_display_layer, fontColor);
   text_layer_set_background_color(ampm_display_layer, GColorClear);
   text_layer_set_font(ampm_display_layer, date_day_font);
   layer_add_child((Layer *)window, (Layer *)ampm_display_layer);  
